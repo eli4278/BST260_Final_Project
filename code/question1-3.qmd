@@ -19,6 +19,8 @@ library(conflicted)
 conflicts_prefer(dplyr::filter)
 ```
 
+## Question 1
+
 Define an object `counts` by wrangling `puerto_rico_counts` to 1) include data only from 2002-2017 and counts for people 60 or over. We will focus in this older subset.
 
 ```{r}
