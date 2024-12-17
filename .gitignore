@@ -1,0 +1,5 @@
+# ignore rstudio user configs
+.Rproj.user/
+
+# ignore all rstudio config files
+*.Rproj
