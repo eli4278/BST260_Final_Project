@@ -10,8 +10,7 @@ editor_options:
 
 Load Packages
 
-```{r}
-#| eval: false 
+```{r, message=FALSE}
 library(devtools) 
 library(excessmort)
 library(tidyverse)
@@ -19,8 +18,6 @@ library(conflicted)
 
 conflicts_prefer(dplyr::filter)
 ```
-
-## Question 1
 
 Define an object `counts` by wrangling `puerto_rico_counts` to 1) include data only from 2002-2017 and counts for people 60 or over. We will focus in this older subset.
 
@@ -31,7 +28,7 @@ counts <- puerto_rico_counts |>
   filter(between(year(date), 2002, 2017), agegroup %in% age_groups_60_or_over)
 ```
 
-Use R to determine what day of the week María made landfall in PR (September 20, 2017).
+Determine what day of the week María made landfall in PR (September 20, 2017).
 
 ```{r}
 maria <- make_date(2017, 9, 20) 
@@ -46,20 +43,38 @@ Redefine the date column to be the start of the week that date is part of: in ot
 ```{r}
 weekly_counts <- counts |> mutate(date = floor_date(date, week_start = 3, unit = "week"))  
 head(weekly_counts) 
-dim(weekly_counts)
 ```
 
-11. Now collapse the `weekly_count` data frame to store only one mortality value for each week, for each `sex` and `agegroup`. To this by by redefining `outcome` to have the total deaths that week for each `sex` and `agegroup`. Remove weeks that have less the 7 days of data. Finally, add a column with the MMWR week. Name the resulting data frame `weekly_counts`.
+Now collapse the `weekly_count` data frame to store only one mortality value for each week, for each `sex` and `agegroup`. To this by by redefining `outcome` to have the total deaths that week for each `sex` and `agegroup`. Remove weeks that have less the 7 days of data. Finally, add a column with the MMWR week. Name the resulting data frame `weekly_counts`.
 
-`{r} weekly_counts <- weekly_counts |>    group_by(date, sex, agegroup) |>    summarise(outcome = sum(outcome), population = mean(population), n = n(), .groups = 'drop') |>    filter(n == 7) |>    select(-n) |>    mutate(week = epiweek(date))  # weekly_counts |> ggplot(aes(date,outcome)) + geom_line() + facet_grid(agegroup~sex)  head(weekly_counts) dim(weekly_counts)}`
+```{r}
+weekly_counts <- weekly_counts |>    
+  group_by(date, sex, agegroup) |>    
+  summarise(outcome = sum(outcome), 
+            population = mean(population), 
+            n = n(), .groups = 'drop') |>    
+  filter(n == 7) |>    select(-n) |>    
+  mutate(week = epiweek(date))  
 
-12. Comparing mortality totals is often unfair because the two groups begin compared have different population sizes. It is particularly important we consider rates rather than totals in this dataset because the demographics in Puerto Rico changed dramatically in the last 20 years. To see this use `puerto_rico_counts` to plot the population sizes by age group and gender. Provide a two sentence description of what you see.
+# weekly_counts |> ggplot(aes(date,outcome)) + geom_line() + facet_grid(agegroup~sex)  head(weekly_counts) dim(weekly_counts)}`
+```
 
-`{r} puerto_rico_counts |>    ggplot(aes(date, population, color = agegroup)) +     geom_line() +      facet_wrap('~sex') +     labs(title = "Population Sizes by Age Group and Gender in Puerto Rico", x = "Age Group", y = "Total Population", fill = "Sex") +     theme_minimal() +     theme(axis.text.x = element_text(angle = 45, hjust = 1))}`
+Comparing mortality totals is often unfair because the two groups begin compared have different population sizes. It is particularly important we consider rates rather than totals in this dataset because the demographics in Puerto Rico changed dramatically in the last 20 years. To see this use `puerto_rico_counts` to plot the population sizes by age group and gender. Provide a two sentence description of what you see.
+
+```{r}
+puerto_rico_counts |>    
+  ggplot(aes(date, population, color = agegroup)) +     
+  geom_line() +      
+  facet_wrap('~sex') +     
+  labs(title = "Population Sizes by Age Group and Gender in Puerto Rico", 
+       x = "Age Group", y = "Total Population", fill = "Sex") +     
+  theme_minimal() +     
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
 
 **Change in population size seems to vary by age group. The population sizes for the older age groups have generally increased over time, while those for the younger age groups have decreased over time. There does not appear to be much variability between males and females within each age group.**
 
-13. Make a boxplot for each MMWR week's mortality rate based on the 2002-2016 data. Each week has 15 data points, one for each year. Then add the 2017 data as red points.
+Make a boxplot for each MMWR week's mortality rate based on the 2002-2016 data. Each week has 15 data points, one for each year. Then add the 2017 data as red points.
 
 `{r} # Split data into 2002-2016 and 2017  data_2002_2016 <- weekly_counts |>    filter(year(date) >= 2002 & year(date) <= 2016) |>    group_by(week, date) |>    summarise(rate = sum(outcome) / sum(population), .groups = 'drop') data_2017 <- weekly_counts |>    filter(year(date) == 2017)|>    group_by(week, date) |>    summarise(rate = sum(outcome) / sum(population), .groups = 'drop')  # Create boxplots for 2002-2016 data, add 2017 data ggplot(data_2002_2016, aes(x = week, y = rate, group = week)) +   geom_boxplot() +   geom_point(data = data_2017, aes(x = week, y = rate, group = week, color = "2017")) +   labs(title = "Weekly Mortality Rates: 2002-2016 vs. 2017",        x = "MMWR Week",        y = "Mortality Rate",        color = "Year") +   theme_minimal() +   theme(axis.text.x = element_text(angle = 90))}`
 
