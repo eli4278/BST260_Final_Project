@@ -2,25 +2,95 @@
 title: "questions4-5"
 format: html
 editor: visual
+editor_options: 
+  chunk_output_type: inline
 ---
 
-## Quarto
+# Excess Mortality Prediction
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+Load Packages
 
 ```{r}
-1 + 1
+#| eval: false 
+library(devtools) 
+library(excessmort)
+library(tidyverse)
+library(conflicted)
+
+conflicts_prefer(dplyr::filter)
 ```
 
-You can add options to executable code like this
+## Question 1
+
+Define an object `counts` by wrangling `puerto_rico_counts` to 1) include data only from 2002-2017 and counts for people 60 or over. We will focus in this older subset.
 
 ```{r}
-#| echo: false
-2 * 2
+age_groups_60_or_over <- c("60-64", "65-69", "70-74", "75-79", "80-84", "85-Inf") 
+counts <- puerto_rico_counts |>    
+  mutate(date = as.Date(date)) |>    
+  filter(between(year(date), 2002, 2017), agegroup %in% age_groups_60_or_over)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+Use R to determine what day of the week María made landfall in PR (September 20, 2017).
+
+```{r}
+maria <- make_date(2017, 9, 20) 
+day_of_week <- wday(maria, label = TRUE, abbr = FALSE)  
+day_of_week
+```
+
+**Hurricane Maria made landfall on a Wednesday.**
+
+Redefine the date column to be the start of the week that date is part of: in other words, round the date down to the nearest week. Use the day of the week María made landfall as the first day. So, for example, 2017-09-20, 2017-09-21, 2017-09-22 should all be rounded down to 2017-09-20, while 2017-09-19 should be rounded down to 2017-09-13. Save the resulting table in `weekly_counts`.
+
+```{r}
+weekly_counts <- counts |> mutate(date = floor_date(date, week_start = 3, unit = "week"))  
+head(weekly_counts) 
+dim(weekly_counts)
+```
+
+11. Now collapse the `weekly_count` data frame to store only one mortality value for each week, for each `sex` and `agegroup`. To this by by redefining `outcome` to have the total deaths that week for each `sex` and `agegroup`. Remove weeks that have less the 7 days of data. Finally, add a column with the MMWR week. Name the resulting data frame `weekly_counts`.
+
+`{r} weekly_counts <- weekly_counts |>    group_by(date, sex, agegroup) |>    summarise(outcome = sum(outcome), population = mean(population), n = n(), .groups = 'drop') |>    filter(n == 7) |>    select(-n) |>    mutate(week = epiweek(date))  # weekly_counts |> ggplot(aes(date,outcome)) + geom_line() + facet_grid(agegroup~sex)  head(weekly_counts) dim(weekly_counts)}`
+
+12. Comparing mortality totals is often unfair because the two groups begin compared have different population sizes. It is particularly important we consider rates rather than totals in this dataset because the demographics in Puerto Rico changed dramatically in the last 20 years. To see this use `puerto_rico_counts` to plot the population sizes by age group and gender. Provide a two sentence description of what you see.
+
+`{r} puerto_rico_counts |>    ggplot(aes(date, population, color = agegroup)) +     geom_line() +      facet_wrap('~sex') +     labs(title = "Population Sizes by Age Group and Gender in Puerto Rico", x = "Age Group", y = "Total Population", fill = "Sex") +     theme_minimal() +     theme(axis.text.x = element_text(angle = 45, hjust = 1))}`
+
+**Change in population size seems to vary by age group. The population sizes for the older age groups have generally increased over time, while those for the younger age groups have decreased over time. There does not appear to be much variability between males and females within each age group.**
+
+13. Make a boxplot for each MMWR week's mortality rate based on the 2002-2016 data. Each week has 15 data points, one for each year. Then add the 2017 data as red points.
+
+`{r} # Split data into 2002-2016 and 2017  data_2002_2016 <- weekly_counts |>    filter(year(date) >= 2002 & year(date) <= 2016) |>    group_by(week, date) |>    summarise(rate = sum(outcome) / sum(population), .groups = 'drop') data_2017 <- weekly_counts |>    filter(year(date) == 2017)|>    group_by(week, date) |>    summarise(rate = sum(outcome) / sum(population), .groups = 'drop')  # Create boxplots for 2002-2016 data, add 2017 data ggplot(data_2002_2016, aes(x = week, y = rate, group = week)) +   geom_boxplot() +   geom_point(data = data_2017, aes(x = week, y = rate, group = week, color = "2017")) +   labs(title = "Weekly Mortality Rates: 2002-2016 vs. 2017",        x = "MMWR Week",        y = "Mortality Rate",        color = "Year") +   theme_minimal() +   theme(axis.text.x = element_text(angle = 90))}`
+
+14. Note two things: 1) there is a strong week effect and 2) 2017 is lower than expected. Plot the yearly rates (per 1,000) for 2002-2016:
+
+`{r} weekly_counts |>    filter(year(date) < 2017) |>   mutate(year = year(date), rate=outcome/population) |>    group_by(year) |>    summarise(mortality = mean(rate)*1000) |>    ggplot(aes(x=year, y=mortality)) +   geom_line() +   labs(title = "Yearly Mortality Rates: 2002-2016",        x = "Year",        y = "Mortality Rate (per 1000 people)") +   theme_minimal()}`
+
+**Yearly mortality rates have gone down over time. This may be due to the improving quality of healthcare services and infrastructure, as well as access to such services.**
+
+15. The plot made in 14 explains why 2017 is below what is expected: there appears to be a general decrease in mortality with time. A possible explanation is that medical care is improving and people are living more healthy lives.
+
+Fit a linear model to the weekly data for the 60 and older to the 2002-2016 data that accounts for:
+
+-   A changing population.
+-   The trend observed in 12.
+-   The week effect.
+-   Age effect.
+-   A sex effect.
+
+Use rate as the outcome in the model.
+
+`{r} # fit model based on mortality rate, days since first day in 2002, week of year dat <- weekly_counts |>    mutate(rate = outcome/population,          day = difftime(date, min(date), units = "day"),          week = as.factor(week)) |>    filter(year(date) < 2017)  fit <- lm(data = dat, "rate ~ day + week + agegroup + sex") summary(fit)}`
+
+16. Now obtain expected counts for the entire dataset, including 2017. Compute the difference between the observed count and expected count and plot the total excess death for each week. Construct a confidence interval for the excess mortality estimate for each week. Hint: use the `predict` function.
+
+`{r} dat2 <- weekly_counts |>    mutate(rate = outcome/population,          day = difftime(date, min(date), units = "day"),          week = as.factor(week)) |>    filter(year(date) == 2017)  # Predict expected counts for the entire dataset including 2017 predictions <- predict(fit, newdata = dat2, se.fit = T)  dat2 <- dat2 |>    mutate(expected_deaths = population*predictions$fit,          excess_deaths = outcome - expected_deaths,          se = predictions$se.fit*population,          sigma = sd(fit$residuals)*population)  # Var(Y-Y_hat) = Var(Y) + Var(Y_hat) = variance of residuals + variance of predictions total_2017 <- dat2 |>    group_by(date) |>    summarise(excess = sum(excess_deaths),              se = sqrt(sum(sigma^2 + se^2)),             lower_CI = excess - 1.96*se,             upper_CI = excess + 1.96*se)  # Plot total excess deaths with confidence intervals ggplot(total_2017, aes(x = date, y = excess)) +   geom_line() +   geom_point(color = "red") +   geom_hline(yintercept = 0) +   geom_ribbon(aes(ymin = lower_CI, ymax = upper_CI), alpha = 0.2) +   labs(title = "Total Excess Deaths for Each Week in 2017",        x = "Week",        y = "Excess Deaths") +   theme_minimal()}`
+
+**For 2017, there appears to be a few weeks around October when the number of actual deaths is much higher than the number of expected deaths, based on our model.**
+
+17. Finally, plot the observed rates and predicted rates from the model for each `agegroup` and `sex`. Comment on how well the model fits and what you might do differently.
+
+`{r} # Predict expected rate for the entire dataset including 2017 dat2 <- weekly_counts |>    mutate(rate = outcome/population,          day = difftime(date, min(date), units = "day"),          week = as.factor(week))  dat2$expected_rate <- predict(fit, dat2)  # Plot observed and predicted rates by age group and sex ggplot(dat2, aes(x = date)) +   geom_line(aes(y = rate, color = "Observed")) +   geom_line(aes(y = expected_rate, color = "Predicted"), linetype = "dashed") +   facet_wrap(~ agegroup + sex, scales = "free_y") +   labs(title = "Observed and Predicted Mortality Rates by Age Group and Sex",        x = "Week",        y = "Mortality Rate") +   scale_color_manual(values = c("Observed" = "blue", "Predicted" = "red")) +   theme_minimal() +   theme(axis.text.x = element_text(angle = 90))}`
+
+**The model fits somewhat well, but is limited in that we are using linear regression, which may not be well-suited for time series data. A time series model that varies more randomly may be better suited for accurately predicting mortality rate over time.**
