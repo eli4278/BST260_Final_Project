@@ -21,14 +21,105 @@ conflicts_prefer(dplyr::filter)
 
 ## Question 1
 
-Define an object `counts` by wrangling `puerto_rico_counts` to 1) include data only from 2002-2017 and counts for people 60 or over. We will focus in this older subset.
+```{r}
+puerto_rico_counts |>    
+  ggplot(aes(date, population, color = agegroup)) +     
+  geom_line() +      
+  facet_wrap('~sex') +     
+  labs(title = "Population Sizes by Age Group and Gender in Puerto Rico", 
+       x = "Age Group", y = "Total Population", fill = "Sex") +     
+  theme_minimal() +     
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+As seen from the plot, the population sizes for the younger age groups have increased over time, while those for the older age groups have decreased. There does not appear to be any significant differences in population size between males and females overtime. Both males and females followed the same general trend for each age group.
+
+## Question 2
+
+Divide the data into weeks
 
 ```{r}
-age_groups_60_or_over <- c("60-64", "65-69", "70-74", "75-79", "80-84", "85-Inf") 
-counts <- puerto_rico_counts |>    
-  mutate(date = as.Date(date)) |>    
-  filter(between(year(date), 2002, 2017), agegroup %in% age_groups_60_or_over)
+weekly_counts <- puerto_rico_counts |>    
+  mutate(date = as.Date(date),
+         date = floor_date(date, week_start = 3, unit = "week"))  
+
+weekly_counts <- weekly_counts |>    
+  group_by(date, sex, agegroup) |>    
+  summarise(outcome = sum(outcome), 
+            population = mean(population), 
+            n = n(), .groups = 'drop') |>    
+  filter(n == 7) |>    
+  select(-n) |>    
+  mutate(week = epiweek(date))  
+
+# look at weekly death counts for 2017
+weekly_counts |> 
+  filter(year(date) == 2017) |> 
+  ggplot(aes(date,outcome)) + geom_line() + facet_grid(sex~agegroup)
 ```
+
+Fit a zero-inflated Poisson regression model to the weekly data that accounts for:
+
+-   Age effect.
+-   A sex effect.
+-   Week of year (1-52).
+
+Use death count as the outcome in the model.
+
+```{r}
+# fit model based on death counts from before 2017, use population as offset
+
+training <- weekly_counts |> filter(year(date) < 2017)
+
+fit <- glm(data = training, 
+           outcome ~ week + as.factor(agegroup) + as.factor(sex) + log(population),
+           family = poisson(link = "log"),) 
+summary(fit)
+```
+
+Check for over dispersion:
+
+```{r}
+# Calculate Pearson residuals
+pearson_residuals <- residuals(fit, type = "pearson")
+
+# Check if the sum of squared Pearson residuals is much larger than the degrees of freedom
+sum(pearson_residuals^2) / df.residual(fit)
+```
+
+The model is not significantly over-dispersed, so we should be okay to proceed.
+
+Apply this model to the 2017 data to predict death counts and standard deviations.
+
+```{r}
+data_2017 <- weekly_counts |>    
+  filter(year(date) == 2017)
+
+pred_2017 <- predict.glm(fit, data_2017, se.fit = T)
+```
+
+Create confidence intervals for each week of 2017 and compare with actual counts:
+
+```{r}
+data_2017 <- cbind(data_2017, pred_2017)
+data_2017 <- data_2017 |> 
+  mutate(lower = fit - 1.96*se.fit,
+         upper = fit + 1.96*se.fit)
+
+ggplot(data_2017, aes(x = week, y = outcome, color = sex)) +   
+  geom_line() +
+  facet_wrap("~agegroup") +
+  labs(title = "Weekly Death Counts: 2017",        
+       x = "Week",        
+       y = "Death Count",        
+       color = "Year") +   
+  theme_minimal() +   
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+## Question 3
+
+## Question 4
 
 Determine what day of the week María made landfall in PR (September 20, 2017).
 
@@ -63,42 +154,51 @@ weekly_counts <- weekly_counts |>
 
 Comparing mortality totals is often unfair because the two groups begin compared have different population sizes. It is particularly important we consider rates rather than totals in this dataset because the demographics in Puerto Rico changed dramatically in the last 20 years. To see this use `puerto_rico_counts` to plot the population sizes by age group and gender. Provide a two sentence description of what you see.
 
-```{r}
-puerto_rico_counts |>    
-  ggplot(aes(date, population, color = agegroup)) +     
-  geom_line() +      
-  facet_wrap('~sex') +     
-  labs(title = "Population Sizes by Age Group and Gender in Puerto Rico", 
-       x = "Age Group", y = "Total Population", fill = "Sex") +     
-  theme_minimal() +     
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-**Change in population size seems to vary by age group. The population sizes for the older age groups have generally increased over time, while those for the younger age groups have decreased over time. There does not appear to be much variability between males and females within each age group.**
-
 Make a boxplot for each MMWR week's mortality rate based on the 2002-2016 data. Each week has 15 data points, one for each year. Then add the 2017 data as red points.
 
-`{r} # Split data into 2002-2016 and 2017  data_2002_2016 <- weekly_counts |>    filter(year(date) >= 2002 & year(date) <= 2016) |>    group_by(week, date) |>    summarise(rate = sum(outcome) / sum(population), .groups = 'drop') data_2017 <- weekly_counts |>    filter(year(date) == 2017)|>    group_by(week, date) |>    summarise(rate = sum(outcome) / sum(population), .groups = 'drop')  # Create boxplots for 2002-2016 data, add 2017 data ggplot(data_2002_2016, aes(x = week, y = rate, group = week)) +   geom_boxplot() +   geom_point(data = data_2017, aes(x = week, y = rate, group = week, color = "2017")) +   labs(title = "Weekly Mortality Rates: 2002-2016 vs. 2017",        x = "MMWR Week",        y = "Mortality Rate",        color = "Year") +   theme_minimal() +   theme(axis.text.x = element_text(angle = 90))}`
+```{r}
+# Split data into 2002-2016 and 2017  
+data_2002_2016 <- weekly_counts |>    
+  filter(year(date) >= 2002 & year(date) <= 2016) |>    
+  group_by(week, date) |>    
+  summarise(rate = sum(outcome) / sum(population), .groups = 'drop') 
 
-14. Note two things: 1) there is a strong week effect and 2) 2017 is lower than expected. Plot the yearly rates (per 1,000) for 2002-2016:
+data_2017 <- weekly_counts |>    
+  filter(year(date) == 2017)|>    
+  group_by(week, date) |>    
+  summarise(rate = sum(outcome) / sum(population), .groups = 'drop')  
 
-`{r} weekly_counts |>    filter(year(date) < 2017) |>   mutate(year = year(date), rate=outcome/population) |>    group_by(year) |>    summarise(mortality = mean(rate)*1000) |>    ggplot(aes(x=year, y=mortality)) +   geom_line() +   labs(title = "Yearly Mortality Rates: 2002-2016",        x = "Year",        y = "Mortality Rate (per 1000 people)") +   theme_minimal()}`
+# Create boxplots for 2002-2016 data, add 2017 data 
+ggplot(data_2002_2016, aes(x = week, y = rate, group = week)) +   
+  geom_boxplot() +   
+  geom_point(data = data_2017, aes(x = week, y = rate, group = week, color = "2017")) +   
+  labs(title = "Weekly Mortality Rates: 2002-2016 vs. 2017",        
+       x = "MMWR Week",        
+       y = "Mortality Rate",        
+       color = "Year") +   
+  theme_minimal() +   
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+Note two things: 1) there is a strong week effect and 2) 2017 is lower than expected. Plot the yearly rates (per 1,000) for 2002-2016:
+
+```{r}
+weekly_counts |>    
+  filter(year(date) < 2017) |>   
+  mutate(year = year(date), rate=outcome/population) |>    
+  group_by(year) |>    
+  summarise(mortality = mean(rate)*1000) |>    
+  ggplot(aes(x=year, y=mortality)) +   
+  geom_line() +   
+  labs(title = "Yearly Mortality Rates: 2002-2016",        
+       x = "Year",        
+       y = "Mortality Rate (per 1000 people)") +   
+  theme_minimal()
+```
 
 **Yearly mortality rates have gone down over time. This may be due to the improving quality of healthcare services and infrastructure, as well as access to such services.**
 
-15. The plot made in 14 explains why 2017 is below what is expected: there appears to be a general decrease in mortality with time. A possible explanation is that medical care is improving and people are living more healthy lives.
-
-Fit a linear model to the weekly data for the 60 and older to the 2002-2016 data that accounts for:
-
--   A changing population.
--   The trend observed in 12.
--   The week effect.
--   Age effect.
--   A sex effect.
-
-Use rate as the outcome in the model.
-
-`{r} # fit model based on mortality rate, days since first day in 2002, week of year dat <- weekly_counts |>    mutate(rate = outcome/population,          day = difftime(date, min(date), units = "day"),          week = as.factor(week)) |>    filter(year(date) < 2017)  fit <- lm(data = dat, "rate ~ day + week + agegroup + sex") summary(fit)}`
+The plot made in 14 explains why 2017 is below what is expected: there appears to be a general decrease in mortality with time. A possible explanation is that medical care is improving and people are living more healthy lives.
 
 16. Now obtain expected counts for the entire dataset, including 2017. Compute the difference between the observed count and expected count and plot the total excess death for each week. Construct a confidence interval for the excess mortality estimate for each week. Hint: use the `predict` function.
 
