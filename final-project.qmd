@@ -1,26 +1,20 @@
 ---
-title: "BST260 Final Report"
+title: "Excess Mortality: Predicting and Evaluating the Effects of Hurricane Maria on Puerto Rico"
 format: html
-editor: visual
+author:
+  - Eric Li
+  - John Wu
+editor: source
 ---
 
-## Quarto
+# Abstract
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+# Introduction
 
-## Running Code
+# Methods
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+# Results
 
-```{r}
-1 + 1
-```
+# Discussion
 
-You can add options to executable code like this
 
-```{r}
-#| echo: false
-2 * 2
-```
-
-The `echo: false` option disables the printing of code (only output is displayed).
