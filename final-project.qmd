@@ -1,6 +1,9 @@
 ---
-title: "BST260 Final Report"
+title: "Excess Mortality: Predicting and Evaluating the Effects of Hurricane Maria on Puerto Rico"
 format: html
+author:
+  - Eric Li
+  - John Wu
 editor: source
 ---
 
