@@ -1,0 +1,301 @@
+
+
+
+
+
+```{r}
+library(tidyverse)
+library(excessmort)
+library(lubridate)
+library(splines)
+library(MASS)
+library(pscl)
+
+```
+
+```{r}
+
+# 1. Data Preparation
+counts <- puerto_rico_counts |>
+  filter(between(year(date), 1985, 2018))
+
+maria <- make_date(2017, 9, 20)
+
+
+# Create weekly data
+weekly_counts <- counts |>
+  mutate(date = floor_date(date, unit = "week", week_start = wday(maria))) |>
+  group_by(date, sex, agegroup) |>
+  summarize(
+    outcome = sum(outcome), 
+    population = mean(population), 
+    n = n(),
+    .groups = "drop"
+  ) |>
+  filter(n == 7) |>
+  mutate(week = epiweek(date))
+
+```
+
+
+```{r}
+# 2. Model fitting
+model_data <- weekly_counts |>
+  mutate(
+    days_since_start = as.numeric(difftime(date, min(date), units = "days")),
+    days_since_beginning_of_year = as.numeric(difftime(date, 
+                                                       as.Date(paste0(format(date, "%Y"), "-01-01")), 
+                                                       units = "days")),
+    week_of_year = week(date),
+    week_factor = factor(week_of_year),
+    log_population = log(population)
+  )
+
+# Fit model on pre-Maria data
+training_data <- model_data |> filter(date < maria)
+nb_model <- glm.nb(outcome ~ sex + agegroup + days_since_start + 
+                   week_factor + offset(log_population) + bs(days_since_beginning_of_year, dbf = 4),
+                   data = training_data)
+```
+
+
+```{r}
+summary(nb_model)
+
+```
+
+
+
+
+```{r}
+# 3. Generate predictions with confidence intervals
+# Get predicted values on log scale with standard errors
+pred_log <- predict(nb_model, newdata = model_data, 
+                   type = "link", se.fit = TRUE)
+
+# Transform to response scale with confidence intervals
+model_data <- model_data |>
+  mutate(
+    predicted = exp(pred_log$fit),
+    se_log = pred_log$se.fit,
+    # Lower and upper CI on response scale
+    ci_lower = exp(pred_log$fit - 1.96 * se_log),
+    ci_upper = exp(pred_log$fit + 1.96 * se_log)
+  )
+```
+
+```{r}
+# 4. Create visualization for specific time period
+plot_data <- model_data |>
+  filter(year(date) >= 2017) |>
+  group_by(date) |>
+  summarize(
+    actual = sum(outcome),
+    predicted = sum(predicted),
+    ci_lower = sum(ci_lower),
+    ci_upper = sum(ci_upper),
+    .groups = "drop"
+  )
+
+# Create the plot
+ggplot(plot_data, aes(x = date)) +
+  # Add confidence interval ribbon
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper),
+              fill = "gray80", alpha = 1) +
+  # Add predicted line
+  geom_line(aes(y = predicted, color = "Predicted"),
+            linewidth = 1) +
+  # Add actual points
+  geom_point(aes(y = actual, color = "Actual"),
+             size = 2) +
+  # Add vertical line for Maria
+  geom_vline(xintercept = maria, 
+             linetype = "dashed", 
+             color = "red") +
+  # Customize colors and labels
+  scale_color_manual(values = c("Predicted" = "blue", "Actual" = "black")) +
+  labs(title = "Weekly Deaths in Puerto Rico: Predicted vs Actual",
+       subtitle = "With 95% confidence intervals for predictions",
+       x = "Date",
+       y = "Number of Deaths",
+       color = "Type",
+       caption = "Red dashed line indicates Hurricane Maria landfall") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+# 5. Calculate excess deaths with confidence intervals
+plot_data <- plot_data |>
+  mutate(
+    excess = actual - predicted,
+    excess_ci_lower = actual - ci_upper,
+    excess_ci_upper = actual - ci_lower
+  )
+
+# Create excess deaths plot
+ggplot(plot_data, aes(x = date)) +
+  geom_ribbon(aes(ymin = excess_ci_lower, 
+                  ymax = excess_ci_upper),
+              fill = "gray80", 
+              alpha = 1) +
+  geom_line(aes(y = excess)) +
+  geom_point(aes(y = excess)) +
+  geom_hline(yintercept = 0, 
+             linetype = "dashed") +
+  geom_vline(xintercept = maria, 
+             linetype = "dashed", 
+             color = "red") +
+  labs(title = "Excess Deaths After Hurricane Maria",
+       subtitle = "With 95% confidence intervals",
+       x = "Date",
+       y = "Excess Deaths",
+       caption = "Red dashed line indicates Hurricane Maria landfall") +
+  theme_minimal()
+```
+
+```{r}
+# 6. Summary statistics for the period after Maria
+summary_stats <- plot_data |>
+  filter(date >= maria) |>
+  summarize(
+    total_excess = sum(excess),
+    total_excess_ci_lower = sum(excess_ci_lower),
+    total_excess_ci_upper = sum(excess_ci_upper)
+  )
+
+print(summary_stats)
+```
+
+```{r}
+# 1. Create demographic-specific analysis
+demographic_analysis <- model_data |>
+  filter(year(date) >= 2017) |>
+  mutate(
+    excess = outcome - predicted,
+    excess_ci_lower = outcome - ci_upper,
+    excess_ci_upper = outcome - ci_lower,
+    # Calculate relative excess (as percentage)
+    relative_excess = (excess / predicted) * 100
+  )
+```
+
+```{r}
+
+# 2. Age group comparison plot
+p1 <- demographic_analysis |>
+  filter(date >= maria) |>
+  group_by(agegroup, date) |>
+  summarize(
+    excess = sum(excess),
+    relative_excess = (sum(excess) / sum(predicted)) * 100,
+    .groups = "drop"
+  ) |>
+  ggplot(aes(x = date, y = excess, color = agegroup)) +
+  geom_line() +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_vline(xintercept = maria, linetype = "dashed", color = "red") +
+  labs(title = "Excess Deaths by Age Group",
+       x = "Date",
+       y = "Excess Deaths",
+       color = "Age Group") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+p1
+
+```
+
+```{r}
+# 3. Sex comparison plot
+p2 <- demographic_analysis |>
+  filter(date >= maria) |>
+  group_by(sex, date) |>
+  summarize(
+    excess = sum(excess),
+    relative_excess = (sum(excess) / sum(predicted)) * 100,
+    .groups = "drop"
+  ) |>
+  ggplot(aes(x = date, y = excess, color = sex)) +
+  geom_line() +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_vline(xintercept = maria, linetype = "dashed", color = "red") +
+  labs(title = "Excess Deaths by Sex",
+       x = "Date",
+       y = "Excess Deaths",
+       color = "Sex") +
+  theme_minimal()
+
+p2
+```
+
+```{r}
+# 4. Faceted plot showing both age and sex
+p3 <- demographic_analysis |>
+  filter(date >= maria) |>
+  ggplot(aes(x = date, y = excess, color = sex)) +
+  geom_line() +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_vline(xintercept = maria, linetype = "dashed", color = "red") +
+  facet_wrap(~agegroup, scales = "free_y") +
+  labs(title = "Excess Deaths by Age Group and Sex",
+       x = "Date",
+       y = "Excess Deaths",
+       color = "Sex") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p3
+```
+
+```{r}
+# 5. Summary statistics by demographic groups
+age_summary <- demographic_analysis |>
+  filter(date >= maria) |>
+  group_by(agegroup) |>
+  summarize(
+    total_excess = sum(excess),
+    relative_excess = (sum(excess) / sum(predicted)) * 100,
+    .groups = "drop"
+  ) |>
+  arrange(desc(abs(total_excess)))
+
+sex_summary <- demographic_analysis |>
+  filter(date >= maria) |>
+  group_by(sex) |>
+  summarize(
+    total_excess = sum(excess),
+    relative_excess = (sum(excess) / sum(predicted)) * 100,
+    .groups = "drop"
+  )
+```
+
+```{r}
+# 6. Create a heatmap of relative excess deaths
+p4 <- demographic_analysis |>
+  filter(date >= maria) |>
+  group_by(agegroup, sex) |>
+  summarize(
+    relative_excess = (sum(excess) / sum(predicted)) * 100,
+    .groups = "drop"
+  ) |>
+  ggplot(aes(x = sex, y = agegroup, fill = relative_excess)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                      midpoint = 0) +
+  labs(title = "Relative Excess Deaths (%)",
+       subtitle = "By Age Group and Sex",
+       fill = "% Excess") +
+  theme_minimal()
+
+# Return all plots and summaries
+list(
+  plots = list(p1, p2, p3, p4),
+  age_summary = age_summary,
+  sex_summary = sex_summary
+)
+
+```
