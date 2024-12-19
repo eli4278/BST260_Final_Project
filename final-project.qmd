@@ -9,12 +9,62 @@ editor: source
 
 # Abstract
 
+On September 2017, Hurricane Maria (Maria), a category 5 hurricane, made landfall in Puerto Rico. Maria is the most devastating hurricane to have ravaged Puerto Rico having been widely considered to have the highest mortality and economic costs to Puerto Rico to date. Although the death toll that are directly attributed to Maria is clear, research on post-Maria after effects on mortality has remained not exhausted. Particularly, the societal infrastructures being decimated predisposed certain demographic groups to be disproportinately affected in mortality. We used ***negative binomal regression to measure the absolute death count coupled with linear regression to measure the mortality rates.*** In our analysis, we have found that ***woman observed higher changes in mortality rates on average relative to men when comparing periods [1985 to 2017] against the post-Maria time periods of 2017 to 2020***. Furthermore, we have also found that the following age groups showed the highest change in mortality rates ***60+*** and the least affected were ages ***20-60***. We conclude that there has been a disproportionate indirect effects of Maria on mortality based on demographic groups post-Maria.  
+
+
 # Introduction
+
+For countries and states within the vicinity of the Gulf of Mexico and the Atlantic Ocean, hurricanes represent a set of economically and humanly devastating natural disasters. Recognizing these profound risks, governmental agencies have been established to track, forecast, and develop comprehensive protocols for hurricane evacuation, economic recovery, and comprehensive emergency management. One country of interest, Puerto Rico, is geographical positioned in the Caribbean, which inherently increases its vulnerability to tropical cyclones. Unfortunately, Puerto Rico's infrastructure has been historically strained by long-standing economic challenges and aging systems, which makes uniquely susceptible to widespread destruction induced by a hurricane. This systemic fragility became dramatically evident during the consecutive hurricane events of 2017, exposing critical weaknesses in disaster preparedness and response mechanisms.
+
+Hurricane Maria (Maria) stands as the deadliest and costliest hurricane to have devastated Puerto Rico to date. The category 5 hurricane caused unprecedented destruction across the island on September 2017. One factor that contributed to Maria's impact was that another category 5 hurricane, Hurricane Irma (Irma), had struck the island merely two weeks prior, leaving Puerto Rico in an exceptionally vulnerable state. The preceding hurricane's impact was stark: over 80,000 residents were left without power due to decimation of the electrical grid. Hence, the island's infrastructure remained critically compromised when Maria made its catastrophic landfall. The aftermath of Maria had catalyzed numerous academic and governmental studies and spurred the creation of comprehensive data repositories. While extensive analyses have focused on economic damages and their residual effects, mortality studies have brought in more questions to be asked. A significant research study conducted by K. Cowan, titled "Excess Mortality and Associated Risk Factors Related to Hurricane Maria in Puerto Rico," provides crucial insights. By examining the six-month post-disaster death records and comparing them to the pre-Maria period of 2016-2017, Cowan identified significant documentation limitations in post-disaster death records. Methodologically, Cowan's research expanded beyond traditional mortality assessments. By examining narrative information from death certificates and analyzing underlying disease categorizations, the study shed light on the indirect effects of Maria on mortality. Compelling evidence emerged suggesting that preexisting health conditions were dramatically exacerbated in the hurricane's aftermath. These findings underscore the complex, multifaceted nature of disaster-related mortality and mandate further comprehensive investigations to precisely determine deaths indirectly attributed to or exacerbated by Maria.
+
+Contemporary research have suggested that different demographic groups may experience varying degrees of disaster impact. The differential vulnerability across populations necessitates nuanced, targeted approaches to disaster response and recovery strategies. By uncovering mortality patterns across diverse demographic segments, researchers can identify systemic vulnerabilities and develop more effective interventions. Our study aims to focus specifically on mortality effects across different age groups and sexes. We aim to predict the excess mortality attributed to Maria on demographic groups of interest and by analyzing these demographic variations, we seek to identify the most vulnerable populations which will prove useful for future disaster preparedness, emergency response, and healthcare interventions. We hypothesize that women and older age groups will demonstrate heightened vulnerability to hurricane-related mortality both during Maria and post-Maria. Through this research, we aspire to uncover select demographic groups mortality during and following Maria have been disporportionately affected.
+
 
 # Methods
 
+## Data Sources
+
+### excessmort
+
+The main data used for the purposes of the analysis in this study was obtained from the "Excess Mortality" package developed by Acosta and Irizarry (2021). This data is provided in a R package named `excessmort`. The time frame used for our analysis and prediction is from 1985-2016 with 2017 as the prediction year. 
+
+#### Data Cleaning Logic
+
+The R code for wrangling the data from `excessmort` package is provided below.
+
+### New York Times Data
+
+Data was also obtained from the New York Times report on the death toll for Maria that spans to the year ended and provided data on the prior two years (2015-2016). The count of deaths is daily. This data from the New York Times report was compared to the `excessmort` R package. Before comparison the New York Times data had to be thoroughly prepared because we received it in a pdf file format. The file was then converted to a `.txt` file and wrangled. We have provided a python script named `wrangle_nyt.py` that we have provided in the `code` directory. 
+
+## Methods
+
+## Analytical Techniques
+
+
+
 # Results
 
+
+
 # Discussion
+
+## Analysis of Population Sizes
+
+### Age and Population Size
+
+### Sex and Population Size
+
+
+## Periods of Excess Mortality
+
+## Estimation of Excess Deaths
+
+For each week of 2017-2018,
+
+## Data Comparision
+
+## Key Findings and Conclusion
+
 
 
