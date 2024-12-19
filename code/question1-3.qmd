@@ -3,7 +3,7 @@ title: "BST260 Final Project"
 format: html
 editor: visual
 editor_options: 
-  chunk_output_type: inline
+  chunk_output_type: console
 ---
 
 # Excess Mortality Prediction
@@ -136,15 +136,35 @@ Create confidence intervals for each week of 2017 and compare with actual counts
 ```{r}
 data_2017 <- cbind(data_2017, pred_2017)
 
-CIs <- confint(zip_model)
+library(boot)
 
-data_2017 <- data_2017 |> 
-  mutate(lower = fit - 1.96*se.fit,
-         upper = fit + 1.96*se.fit)
+bootstrap_predict <- function(data, indices) {
+  # Resample data
+  boot_data <- data[indices, ]
+  
+  # Refit model
+  boot_model <- zeroinfl(count ~ x1 + x2 | x1 + x2, data = boot_data, dist = "poisson")
+  
+  # Predict for specific newdata
+  new_data <- data.frame(x1 = 0, x2 = 1) # Adjust newdata as needed
+  predict(boot_model, newdata = new_data, type = "response")
+}
+
+# Perform bootstrapping
+set.seed(123)
+boot_res <- boot(data, statistic = bootstrap_predict, R = 10)
+
+# extract confidence intervals, apply to predictions for 2017
+CI <- setNames(as.data.frame(t(sapply(1:nrow(data_2017), function(row)
++     boot.ci(boot_res, conf = 0.95, type = "basic", index = row)$basic[, 4:5]))),
++     c("lower", "upper"))
+
+data_2017 <- cbind(data_2017, CI)
 
 ggplot(data_2017, aes(x = week, y = outcome, color = sex)) +   
   geom_line() +
   geom_line(aes(x=week, y=pred_2017, color=sex, linetype = "Predicted")) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
   facet_wrap("~agegroup") +
   labs(title = "Weekly Death Counts: 2017",        
        x = "Week",        
@@ -153,6 +173,27 @@ ggplot(data_2017, aes(x = week, y = outcome, color = sex)) +
   scale_linetype_manual(values = c("solid", "dashed")) +
   theme_minimal() +   
   theme(axis.text.x = element_text(angle = 90))
+
+# individual plots
+# Split data by age group
+data_split <- split(data_2017, data_2017$agegroup)
+
+# Generate individual plots
+plots <- lapply(names(data_split), function(agegroup) {
+  ggplot(data_split[[agegroup]], aes(x = week, y = outcome, color = sex)) +   
+    geom_line() +
+    geom_line(aes(x = week, y = pred_2017, color = sex, linetype = "Predicted")) +
+    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
+    labs(
+      title = paste("Weekly Death Counts: 2017 - Age Group:", agegroup),        
+      x = "Week",        
+      y = "Death Count",        
+      color = "Sex"
+    ) +   
+    scale_linetype_manual(values = c("solid", "dashed")) +
+    theme_minimal() +   
+    theme(axis.text.x = element_text(angle = 90))
+})
 ```
 
 ## Question 3
