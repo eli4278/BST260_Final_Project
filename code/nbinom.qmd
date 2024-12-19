@@ -54,7 +54,7 @@ model_data <- weekly_counts |>
 # Fit model on pre-Maria data
 training_data <- model_data |> filter(date < maria)
 nb_model <- glm.nb(outcome ~ sex + agegroup + days_since_start + 
-                   week_factor + offset(log_population) + bs(days_since_beginning_of_year, dbf = 4),
+                   week_factor + offset(log_population) + bs(days_since_beginning_of_year, df = 4),
                    data = training_data)
 ```
 
